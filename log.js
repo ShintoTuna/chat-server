@@ -19,9 +19,6 @@ function ISODateString(d) {
 
 module.exports = {
     info(txt) {
-        const date = new Date();
-        const formatted = `[${ISODateString(date)}]`;
-
-        console.log(`${formatted} INFO ${txt}`);
+        console.log(`[${ISODateString(new Date())}] INFO ${txt}`);
     },
 };

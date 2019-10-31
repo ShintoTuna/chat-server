@@ -7,7 +7,8 @@ const io = require('socket.io')(PORT, {
 log.info(`Starting server on port ${PORT}`);
 
 const SYSTEM_USERNAME = 'System';
-const IDLE_TIMEOUT = process.env.IDLE_TIMEOUT | 10000;
+const MAX_MESSAGE_LENGTH = process.env.MAX_MESSAGE_LENGTH | 500;
+const IDLE_TIMEOUT = process.env.IDLE_TIMEOUT | 100000;
 
 let onlineUsers = [];
 
@@ -39,36 +40,65 @@ function register(socket, username) {
         socket.emit('registration_result', { success: true });
         io.sockets.emit('online_users_update', onlineUsers);
 
-        io.sockets.emit('new_message', {
-            message: `<i>${username} connected</i>`,
-            username: SYSTEM_USERNAME,
-        });
+        io.sockets.emit('new_message', systemMessage(`<i>${username} connected</i>`));
 
         socket.timeout = setTimeout(() => socket.disconnect(true), IDLE_TIMEOUT);
         log.info(`${username} joined chat`);
     }
 }
 
-function newMessage(socket, { message, username }) {
+function newMessage(socket, message) {
+    const error = validateMessage(message);
+
     clearTimeout(socket.timeout);
     socket.timeout = setTimeout(() => socket.disconnect(true), IDLE_TIMEOUT);
 
-    io.sockets.emit('new_message', { message, username });
-    log.info(`message sent from ${username}`);
+    if (error) {
+        socket.emit('new_message', systemMessage(error, true));
+        log.info(`message error from ${message.username}: ${error}`);
+    } else {
+        io.sockets.emit('new_message', message);
+        log.info(`message sent from ${message.username}`);
+    }
 }
 
 function disconnect(socket) {
     if (socket.username) {
         onlineUsers = onlineUsers.filter((e) => e !== socket.username);
-        io.sockets.emit('online_users_update', onlineUsers);
 
-        io.sockets.emit('new_message', {
-            message: `<i>${socket.username} disconnected</i>`,
-            username: SYSTEM_USERNAME,
-        });
+        io.sockets.emit('online_users_update', onlineUsers);
+        io.sockets.emit('new_message', systemMessage(`<i>${socket.username} left chat</i>`));
 
         log.info(`${socket.username} left chat`);
     }
+}
+
+function validateMessage({ message, username }) {
+    if (!message) {
+        return 'message_missing';
+    }
+    if (typeof message !== 'string') {
+        return 'message_not_string';
+    }
+    if (message.length > MAX_MESSAGE_LENGTH) {
+        return 'message_too_long';
+    }
+    if (!username) {
+        return 'username_missing';
+    }
+    if (!onlineUsers.includes(username)) {
+        return 'user_not_registered';
+    }
+
+    return false;
+}
+
+function systemMessage(message, isError = false) {
+    return {
+        message: `<i>${message}</i>`,
+        username: SYSTEM_USERNAME,
+        error: isError,
+    };
 }
 
 ['SIGINT', 'SIGTERM', 'SIGQUIT'].forEach((signal) => {
