@@ -8,7 +8,7 @@ log.info(`Starting server on port ${PORT}`);
 
 const SYSTEM_USERNAME = 'System';
 const MAX_MESSAGE_LENGTH = process.env.MAX_MESSAGE_LENGTH | 500;
-const IDLE_TIMEOUT = process.env.IDLE_TIMEOUT | 100000;
+const IDLE_TIMEOUT = process.env.IDLE_TIMEOUT | 10000;
 
 let onlineUsers = [];
 
@@ -42,7 +42,7 @@ function register(socket, username) {
 
         io.sockets.emit('new_message', systemMessage(`<i>${username} connected</i>`));
 
-        socket.timeout = setTimeout(() => socket.disconnect(true), IDLE_TIMEOUT);
+        socket.timeout = setTimeout(() => disconnectIdle(socket), IDLE_TIMEOUT);
         log.info(`${username} joined chat`);
     }
 }
@@ -51,7 +51,7 @@ function newMessage(socket, message) {
     const error = validateMessage(message);
 
     clearTimeout(socket.timeout);
-    socket.timeout = setTimeout(() => socket.disconnect(true), IDLE_TIMEOUT);
+    socket.timeout = setTimeout(() => disconnectIdle(socket), IDLE_TIMEOUT);
 
     if (error) {
         socket.emit('new_message', systemMessage(error, true));
@@ -64,13 +64,21 @@ function newMessage(socket, message) {
 
 function disconnect(socket) {
     if (socket.username) {
+        const disconnectMessage = socket.idleDisconnect ? 'disconnected due to inactivity' : 'left chat';
         onlineUsers = onlineUsers.filter((e) => e !== socket.username);
 
         io.sockets.emit('online_users_update', onlineUsers);
-        io.sockets.emit('new_message', systemMessage(`<i>${socket.username} left chat</i>`));
+        io.sockets.emit('new_message', systemMessage(`<i>${socket.username} ${disconnectMessage}</i>`));
 
         log.info(`${socket.username} left chat`);
     }
+}
+
+function disconnectIdle(socket) {
+    socket.emit('disconnect_idle');
+    socket.idleDisconnect = true;
+    socket.disconnect();
+    log.info(`${socket.username} disconnected after ${IDLE_TIMEOUT}ms of inactivity`);
 }
 
 function validateMessage({ message, username }) {
