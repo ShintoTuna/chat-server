@@ -1,14 +1,12 @@
+const { PORT, SYSTEM_USERNAME, IDLE_TIMEOUT, MAX_MESSAGE_LENGTH } = require('./constants');
 const log = require('./log');
-const PORT = process.env.PORT | 8080;
 const io = require('socket.io')(PORT, {
     pingTimeout: 60000, // https://github.com/socketio/socket.io/issues/3259
 });
 
-log.info(`Starting server on port ${PORT}`);
-
-const SYSTEM_USERNAME = 'System';
-const MAX_MESSAGE_LENGTH = process.env.MAX_MESSAGE_LENGTH | 500;
-const IDLE_TIMEOUT = process.env.IDLE_TIMEOUT | 10000;
+log.info(`Starting server on port: ${PORT}`);
+log.info(`IDLE_TIMEOUT: ${IDLE_TIMEOUT}`);
+log.info(`MAX_MESSAGE_LENGTH: ${MAX_MESSAGE_LENGTH}`);
 
 let onlineUsers = [];
 
@@ -103,7 +101,8 @@ function validateMessage({ message, username }) {
 
 function systemMessage(message, isError = false) {
     return {
-        message: `<i>${message}</i>`,
+        message,
+        system: true,
         username: SYSTEM_USERNAME,
         error: isError,
     };
